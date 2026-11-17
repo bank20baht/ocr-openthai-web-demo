@@ -1,0 +1,11 @@
+# Cloudflare Pages headers. Cross-origin isolation lets ONNX Runtime Web use threads
+# (SharedArrayBuffer); without it the model runs on one thread.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# Model files and ONNX Runtime's WebAssembly are pinned by version; cache them for a week.
+/models/*
+  Cache-Control: public, max-age=604800
+/ort/*
+  Cache-Control: public, max-age=604800
