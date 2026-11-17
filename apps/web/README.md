@@ -1,5 +1,7 @@
 # web — OpenThai OCR in the browser
 
+Live: <https://openthai-ocr-text-demo.pages.dev>
+
 Angular app that reads Thai and English text from a photo of a document with
 [OpenThai2.0-OCR-Text](https://huggingface.co/iapp/OpenThai2.0-OCR-Text). There is no server:
 the model runs on the user's machine (ONNX Runtime Web, WebAssembly, in a Web Worker), and the

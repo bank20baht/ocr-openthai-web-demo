@@ -1,8 +1,17 @@
 # ocr-service
 
+Thai + English document OCR that runs entirely in the browser:
+[OpenThai2.0-OCR-Text](https://huggingface.co/iapp/OpenThai2.0-OCR-Text) on ONNX Runtime Web, no
+server, files never leave the machine. Accepts `.jpg` and `.HEIC`.
+
+**Live demo: <https://openthai-ocr-text-demo.pages.dev>**
+
+![OpenThai OCR demo: the scanned document with each read line boxed on the left, the extracted Thai text on the right](docs/screenshot.png)
+
+The app lives in [`apps/web`](apps/web) (see its README for how it works and how to deploy).
+
 Bun-workspace monorepo scaffolded by [`bank20baht-cli`](https://github.com/bank20baht/bahtui)
-(`bahtui new`). Toolchain only — add your own apps under `apps/*` and shared
-libraries under `packages/*`.
+(`bahtui new`): apps under `apps/*`, shared libraries under `packages/*`.
 
 ## Quickstart
 
