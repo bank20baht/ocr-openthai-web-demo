@@ -10,3 +10,6 @@ coverage
 *.log
 .DS_Store
 bun.lockb
+
+# OCR model files, fetched by apps/web/scripts/fetch-model.ts
+apps/web/public/models

@@ -1,0 +1,8 @@
+/* Build-time scripts run by bun (fetch-model). */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "include": ["scripts/**/*.ts"]
+}

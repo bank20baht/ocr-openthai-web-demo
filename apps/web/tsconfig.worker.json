@@ -1,0 +1,9 @@
+/* The OCR worker: the model and its pre/post-processing run off the main thread. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"],
+    "types": []
+  },
+  "include": ["src/**/*.worker.ts"]
+}

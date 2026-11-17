@@ -1,0 +1,43 @@
+{
+  "name": "web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ng": "ng",
+    "model": "bun run scripts/fetch-model.ts",
+    "predev": "bun run model",
+    "dev": "ng serve",
+    "prebuild": "bun run model",
+    "build": "ng build",
+    "test": "ng test",
+    "test:coverage": "ng test --watch=false --coverage",
+    "typecheck": "tsc -b --noEmit",
+    "deploy": "bun run build && wrangler pages deploy dist/web/browser --project-name openthai-ocr-text-demo --branch main"
+  },
+  "dependencies": {
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "bank20baht-ui": "0.19.3",
+    "bank20baht-ui-angular": "0.2.1",
+    "dompurify": "3.4.17",
+    "flatpickr": "4.6.13",
+    "heic-to": "1.6.7",
+    "marked": "18.1.3",
+    "onnxruntime-web": "1.30.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.0",
+    "@angular/cli": "^22.2.0",
+    "@angular/compiler-cli": "^22.2.0",
+    "@types/bun": "^1.3.0",
+    "@vitest/coverage-v8": "^4.0.8",
+    "jsdom": "^30.0.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.0.8"
+  }
+}
