@@ -1,0 +1,12 @@
+node_modules
+.zvec-grep
+dist
+coverage
+*.tsbuildinfo
+.angular
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+bun.lockb

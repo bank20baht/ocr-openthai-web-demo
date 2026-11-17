@@ -1,0 +1,3 @@
+{
+  "extends": "bank20baht-strict/tsconfig/base.json"
+}

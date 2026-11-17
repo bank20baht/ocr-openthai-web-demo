@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommitTypeAll(chore)"],
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 4,
+  "packageRules": [
+    {
+      "description": "Everything not matched below: one weekly PR.",
+      "matchPackageNames": ["*"],
+      "groupName": "others"
+    },
+    {
+      "description": "Dev tooling: linters, formatters, test runners, type packages.",
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "dev-deps"
+    },
+    {
+      "description": "GitHub Actions move together.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    }
+  ]
+}

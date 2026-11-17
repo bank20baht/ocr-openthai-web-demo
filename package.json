@@ -1,0 +1,51 @@
+{
+  "name": "ocr-service",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "build": "bun run scripts/each.ts build",
+    "typecheck": "tsc -p tsconfig.json && bun run scripts/each.ts typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "madge": "madge --circular --extensions ts,tsx --exclude '(^|/)(dist|node_modules|\\.angular)/' apps packages scripts",
+    "deps": "depcruise apps packages scripts --config .dependency-cruiser.mjs",
+    "dup": "jscpd",
+    "audit": "bun audit --audit-level=high",
+    "secrets": "gitleaks git --redact --no-banner",
+    "test": "bun run scripts/each.ts test:coverage",
+    "check:fast": "bun run lint && bun run format:check && bun run typecheck && bun run madge && bun run deps",
+    "check": "bun run check:fast && bun run knip && bun run dup && bun run build && bun run test",
+    "prepare": "husky"
+  },
+  "prettier": "bank20baht-strict/prettier",
+  "packageManager": "bun@1.3.14",
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@eslint/css": "^2.0.0",
+    "@eslint/js": "^10.0.1",
+    "@types/bun": "^1.3.0",
+    "bank20baht-strict": "0.0.6",
+    "dependency-cruiser": "^18.3.1",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-sonarjs": "^4.2.1",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "jscpd": "^5.3.0",
+    "knip": "^6.35.1",
+    "lint-staged": "^17.5.1",
+    "madge": "^8.0.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0"
+  }
+}

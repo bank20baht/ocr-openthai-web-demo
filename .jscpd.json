@@ -1,0 +1,20 @@
+{
+  "path": ["apps", "packages", "scripts"],
+  "format": ["typescript", "markup", "css"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/*.d.ts",
+    "**/*.gen.ts"
+  ],
+  "minTokens": 50,
+  "minLines": 5,
+  "gitignore": true,
+  "reporters": ["console"],
+  "threshold": 5
+}

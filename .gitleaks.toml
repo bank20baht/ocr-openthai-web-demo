@@ -1,0 +1,6 @@
+# Default gitleaks rule set. Add an [[allowlists]] entry here (with a reason)
+# rather than a `# gitleaks:allow` comment when a finding is a false positive.
+title = "gitleaks config"
+
+[extend]
+useDefault = true
