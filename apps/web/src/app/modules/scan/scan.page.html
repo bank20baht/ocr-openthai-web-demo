@@ -1,0 +1,143 @@
+<div class="app-page scan">
+  <baht-page-header
+    heading="สแกนเอกสาร"
+    description="อ่านข้อความภาษาไทยและอังกฤษจากภาพเอกสารด้วย OpenThai2.0-OCR-Text โมเดลทำงานบนเครื่องของคุณ ภาพไม่ถูกส่งออกไปไหน"
+  >
+    <div data-slot="meta" class="meta">
+      <baht-badge
+        [tone]="modelBadge().tone"
+        [label]="modelBadge().label"
+        [busy]="modelBadge().busy"
+      ></baht-badge>
+      @if (ocr.backend()) {
+      <span class="muted">{{ ocr.backend() }}</span>
+      }
+    </div>
+  </baht-page-header>
+
+  @if (ocr.state() === 'error') {
+  <baht-alert
+    tone="danger"
+    heading="โหลดโมเดลไม่สำเร็จ"
+    [message]="ocr.loadError() ?? ''"
+  ></baht-alert>
+  <div>
+    <baht-button variant="secondary" icon="refresh" (click)="retryModel()">ลองโหลดใหม่</baht-button>
+  </div>
+  }
+
+  <baht-form [form]="uploadForm" [busy]="busy()" (bahtChange)="onChange($event)"></baht-form>
+
+  @if (error(); as message) {
+  <baht-alert
+    tone="danger"
+    heading="อ่านไฟล์นี้ไม่ได้"
+    [message]="message"
+    dismissible
+    (bahtDismiss)="error.set(null)"
+  ></baht-alert>
+  }
+
+  <div class="split">
+    <baht-card heading="ตัวอย่างเอกสาร" [subtitle]="preview()?.name ?? 'ยังไม่ได้เลือกไฟล์'">
+      <div class="pane">
+        @if (preview(); as p) {
+        <figure class="sheet">
+          <img [src]="p.url" [alt]="'ภาพเอกสาร ' + p.name" />
+          @if (result(); as r) {
+          <svg
+            class="boxes"
+            [attr.viewBox]="'0 0 ' + r.width + ' ' + r.height"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            @for (points of polygons(); track $index) {
+            <polygon [attr.points]="points" [class.active]="hovered() === $index"></polygon>
+            }
+          </svg>
+          }
+        </figure>
+        @if (p.converted) {
+        <p class="muted">แปลง HEIC เป็น JPEG ในเบราว์เซอร์แล้ว</p>
+        } } @else if (state() === 'decoding') {
+        <div class="center"><baht-spinner size="lg" label="กำลังเปิดภาพ"></baht-spinner></div>
+        } @else {
+        <baht-empty-state
+          icon="folder"
+          message="ยังไม่มีเอกสาร"
+          hint="เลือกภาพ .jpg หรือ .HEIC ด้านบน"
+        ></baht-empty-state>
+        }
+      </div>
+    </baht-card>
+
+    <baht-card heading="ผลลัพธ์" [subtitle]="summary()">
+      <div data-slot="actions" class="actions">
+        <baht-button
+          variant="ghost"
+          size="sm"
+          icon="copy"
+          [disabled]="!result()?.text"
+          (click)="copy()"
+        >
+          คัดลอก
+        </baht-button>
+        <baht-button
+          variant="secondary"
+          size="sm"
+          icon="download"
+          [disabled]="!result()?.text"
+          (click)="download()"
+        >
+          .txt
+        </baht-button>
+      </div>
+      <div class="pane">
+        @if (busy()) {
+        <div class="working">
+          <baht-progress
+            [value]="progressValue()"
+            show-label
+            [label]="progressLabel()"
+          ></baht-progress>
+          <p class="muted">{{ progressLabel() }}</p>
+        </div>
+        } @else if (result(); as r) {
+        <baht-tabs label="มุมมองผลลัพธ์" [tabs]="tabs()" [(value)]="tab"></baht-tabs>
+        @if (tab() === 'text') { @if (r.text) {
+        <pre class="ocr-text" lang="th">{{ r.text }}</pre>
+        } @else {
+        <baht-empty-state
+          icon="search-slash"
+          message="ไม่พบข้อความ"
+          hint="ลองภาพที่คมชัดขึ้น หรือถ่ายให้เอกสารเต็มกรอบ"
+        ></baht-empty-state>
+        } } @else {
+        <ol class="lines" lang="th">
+          @for (line of r.lines; track $index) {
+          <li
+            [class.active]="hovered() === $index"
+            (mouseenter)="hovered.set($index)"
+            (mouseleave)="hovered.set(null)"
+          >
+            <span class="line-text">{{ line.text }}</span>
+            <baht-badge [tone]="tone(line)" [label]="percent(line.confidence)"></baht-badge>
+          </li>
+          }
+        </ol>
+        } @if (r.deskew !== 0) {
+        <p class="muted">หมุนภาพให้ตรง {{ r.deskew }}° ก่อนอ่าน</p>
+        } @if (r.dropped > 0) {
+        <p class="muted">ตัด {{ r.dropped }} บรรทัดที่ไม่น่าเชื่อถือ (ตรายาง ลายเซ็น จุดรบกวน)</p>
+        } } @else {
+        <baht-empty-state
+          icon="empty-box"
+          message="ยังไม่มีผลลัพธ์"
+          hint="ข้อความที่อ่านได้จะแสดงตรงนี้"
+        ></baht-empty-state>
+        }
+      </div>
+    </baht-card>
+  </div>
+</div>
+<baht-toast></baht-toast>

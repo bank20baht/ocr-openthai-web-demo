@@ -1,0 +1,142 @@
+.scan {
+  max-width: none;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--baht-space-3);
+}
+
+.muted {
+  margin: 0;
+  color: var(--baht-color-text-muted);
+  font-size: var(--baht-text-sm);
+}
+
+/* Left half: the document. Right half: what was read from it. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--baht-space-5);
+  align-items: start;
+}
+
+@media (width < 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--baht-space-3);
+  min-height: 320px;
+}
+
+.center {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--baht-space-2);
+}
+
+.sheet {
+  position: relative;
+  margin: 0;
+  border: var(--baht-border);
+  border-radius: var(--baht-radius-md);
+  overflow: hidden;
+  background: var(--baht-color-bg-sunken);
+}
+
+.sheet img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.boxes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.boxes polygon {
+  fill: transparent;
+  stroke: var(--baht-color-primary);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.55;
+}
+
+.boxes polygon.active {
+  fill: var(--baht-color-primary-wash);
+  stroke: var(--baht-color-accent);
+  stroke-width: 3px;
+  opacity: 1;
+}
+
+.working {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--baht-space-3);
+  min-height: 320px;
+}
+
+.ocr-text {
+  margin: 0;
+  padding: var(--baht-space-4);
+  max-height: 70vh;
+  overflow: auto;
+  border: var(--baht-border);
+  border-radius: var(--baht-radius-md);
+  background: var(--baht-color-bg-sunken);
+  font-family: var(--baht-font-family);
+  font-size: var(--baht-text-md);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lines {
+  margin: 0;
+  padding: 0;
+  max-height: 70vh;
+  overflow: auto;
+  list-style: none;
+  border: var(--baht-border);
+  border-radius: var(--baht-radius-md);
+}
+
+.lines li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--baht-space-3);
+  padding: var(--baht-space-2) var(--baht-space-3);
+  border-bottom: 1px solid var(--baht-color-divider);
+}
+
+.lines li:last-child {
+  border-bottom: 0;
+}
+
+.lines li.active {
+  background: var(--baht-color-primary-wash);
+}
+
+.line-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}

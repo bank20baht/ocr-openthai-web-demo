@@ -1,0 +1,19 @@
+/* bank20baht-ui's tokens.css comes first (angular.json); this file only sets the page up. */
+html,
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--baht-color-bg);
+  color: var(--baht-color-text);
+  font-family: var(--baht-font-family);
+}
+
+/* The width every page keeps to inside the shell. */
+.app-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--baht-space-5);
+  box-sizing: border-box;
+  max-width: 1200px;
+  padding: var(--baht-space-5);
+}

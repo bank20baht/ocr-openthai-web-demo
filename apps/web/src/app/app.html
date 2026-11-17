@@ -1,0 +1,15 @@
+<baht-app-shell
+  brand="OpenThai OCR"
+  brand-sub="on-device"
+  brand-href="/"
+  label="OpenThai OCR"
+  value="scan"
+  [items]="items"
+>
+  <div data-slot="actions">
+    <baht-theme-toggle default="system"></baht-theme-toggle>
+  </div>
+  <main class="shell-main">
+    <app-scan-page />
+  </main>
+</baht-app-shell>
