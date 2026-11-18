@@ -38,6 +38,7 @@
     "@vitest/coverage-v8": "^4.0.8",
     "jsdom": "^30.0.0",
     "typescript": "~6.0.2",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.8",
+    "wrangler": "^4.164.0"
   }
 }
