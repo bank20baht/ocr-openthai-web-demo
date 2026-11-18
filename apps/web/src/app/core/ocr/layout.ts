@@ -2,7 +2,7 @@
  * Page layout from the detected line boxes, ported from line_engine.py: skew, line height,
  * reading order (rows, and prose columns read one after another) and mark fragments.
  */
-import { DIGITS, enumNumber } from './thai-text'
+import { DIGITS, enumNumber, startRepeat } from './thai-text'
 import { dist, mean, median, quadHeight, quadWidth, type Quad } from './geometry'
 
 const RAD = 180 / Math.PI
@@ -49,7 +49,29 @@ function gaps(
   return out
 }
 
-type Ctx = { ext: readonly Extent[]; hmed: number; texts: readonly string[] | null }
+/**
+ * The list guard in the column test (line_engine DEFAULTS["cols"]): two sides of a gap that are
+ * the columns of a list are read row by row. 0 turns a test off.
+ */
+export type ListRules = {
+  /** Mean share of each side's lines that start alike (see startRepeat). */
+  readonly listRep: number
+  /** Share of the shorter side's lines facing a line of the other side, both sides narrow. */
+  readonly listFacing: number
+  /** Narrow: median line width under this many line heights. */
+  readonly listMaxW: number
+  /** Share of the left side's lines numbered, facing at least 0.6. */
+  readonly listEnum: number
+}
+
+const LIST_RULES: ListRules = { listRep: 0.6, listFacing: 0, listMaxW: 10, listEnum: 0 }
+
+type Ctx = {
+  ext: readonly Extent[]
+  hmed: number
+  texts: readonly string[] | null
+  rules: ListRules | null
+}
 
 const NO_EXTENT: Extent = [0, 0, 0, 0]
 const ext0 = (c: Ctx, i: number): Extent => c.ext[i] ?? NO_EXTENT
@@ -75,17 +97,49 @@ function prose(col: number[], c: Ctx): boolean {
   const widths = col.map((i) => ext0(c, i)[1] - ext0(c, i)[0])
   const span =
     Math.max(...col.map((i) => ext0(c, i)[1])) - Math.min(...col.map((i) => ext0(c, i)[0]))
-  if (median(widths) < 7 * c.hmed || mean(widths.map((w) => (w >= 0.75 * span ? 1 : 0))) < 0.5)
+  if (median(widths) < 7 * c.hmed || mean(widths.map((w) => (w >= 0.75 * span ? 1 : 0))) < 0.35)
     return false
-  if (c.texts) {
-    const chars = col.flatMap((i) =>
-      Array.from(c.texts?.[i] ?? '').filter((ch) => ch.trim() !== ''),
-    )
+  const texts = c.texts
+  if (texts) {
+    const chars = col.flatMap((i) => Array.from(texts[i] ?? '').filter((ch) => ch.trim() !== ''))
     if (chars.length > 0 && chars.filter((ch) => DIGITS.has(ch)).length > 0.3 * chars.length)
       return false
+    // Prose never repeats a line; a list's value column does.
+    if (new Set(col.map((i) => (texts[i] ?? '').trim())).size < 0.8 * col.length) return false
   }
   return true
 }
+
+/**
+ * Two sides of a gap that are the columns of a list, read row by row (a name and a position, a
+ * label and its value): lines that start alike, or narrow sides whose lines face one to one.
+ */
+function listPair(lcol: number[], rcol: number[], c: Ctx): boolean {
+  const r = c.rules
+  if (!r || !(r.listRep || r.listFacing || r.listEnum) || lcol.length === 0 || rcol.length === 0)
+    return false
+  const texts = c.texts
+  if (r.listRep && texts) {
+    const rep = mean([lcol, rcol].map((col) => startRepeat(col.map((i) => texts[i] ?? ''))))
+    if (rep >= r.listRep) return true
+  }
+  const [small, other] = lcol.length <= rcol.length ? [lcol, rcol] : [rcol, lcol]
+  const cy = (i: number) => (ext0(c, i)[2] + ext0(c, i)[3]) / 2
+  const face = mean(
+    small.map((i) => (other.some((j) => Math.abs(cy(i) - cy(j)) <= 0.5 * c.hmed) ? 1 : 0)),
+  )
+  const wide =
+    Math.max(...[lcol, rcol].map((col) => median(col.map((i) => ext0(c, i)[1] - ext0(c, i)[0])))) /
+    c.hmed
+  if (r.listFacing && face >= r.listFacing && wide < r.listMaxW) return true
+  if (r.listEnum && texts && face >= 0.6)
+    return mean(lcol.map((i) => (enumNumber(texts[i] ?? '') === null ? 0 : 1))) >= r.listEnum
+  return false
+}
+
+/** Two prose columns either side of a gutter, not a numbered list or a list read row by row. */
+const columnPair = (lcol: number[], rcol: number[], c: Ctx): boolean =>
+  prose(lcol, c) && prose(rcol, c) && !numberedAcross(lcol, rcol, c) && !listPair(lcol, rcol, c)
 
 /** Most facing lines numbered n (left) and n+1 (right): a list that reads across. */
 function numberedAcross(lcol: number[], rcol: number[], c: Ctx): boolean {
@@ -116,7 +170,7 @@ function blocks(idx: number[], c: Ctx, depth = 0): number[][] {
     const right = idx.filter((i) => ext0(c, i)[0] >= g1)
     const lcol = nextTo(left, c, true)
     const rcol = nextTo(right, c, false)
-    if (prose(lcol, c) && prose(rcol, c) && !numberedAcross(lcol, rcol, c)) {
+    if (columnPair(lcol, rcol, c)) {
       if (!cut || g1 - g0 > cut.width) cut = { width: g1 - g0, left, right }
     }
   }
@@ -125,11 +179,101 @@ function blocks(idx: number[], c: Ctx, depth = 0): number[][] {
     idx.map((i) => [ext0(c, i)[2], ext0(c, i)[3]] as const),
     0.8 * c.hmed,
   )
-  if (hg.length === 0) return [idx]
+  if (hg.length === 0) return bandedColumns(idx, c, depth) ?? [idx]
   const [g0, g1] = hg.reduce((a, b) => (b[1] - b[0] > a[1] - a[0] ? b : a))
   const top = idx.filter((i) => ext0(c, i)[3] <= g0)
   const bottom = idx.filter((i) => ext0(c, i)[2] >= g1)
   return [...blocks(top, c, depth + 1), ...blocks(bottom, c, depth + 1)]
+}
+
+/**
+ * Prose columns that a few full-width lines cross (a title over both columns, a footer, a
+ * caption between sections), where no plain gutter or horizontal gap exists. Lines at least 0.55
+ * of the block's width, at most 15 % of its lines, are set aside; in the rest a gutter is an x
+ * band in the middle 70 % of the block, at least 0.4 line heights wide, that at most 3 % of the
+ * lines cross. If it lies between two prose columns, the wide lines and the lines crossing the
+ * whole gutter cut the page into bands, each read left of the gutter, then right of it, then the
+ * crossing line under it. Null when the block is not like that.
+ */
+function bandedColumns(idx: number[], c: Ctx, depth: number): number[][] | null {
+  const x0 = Math.min(...idx.map((i) => ext0(c, i)[0]))
+  const x1 = Math.max(...idx.map((i) => ext0(c, i)[1]))
+  const wide = idx.filter((i) => ext0(c, i)[1] - ext0(c, i)[0] >= 0.55 * (x1 - x0))
+  if (wide.length > 0.15 * idx.length) return null
+  const wideSet = new Set(wide)
+  const rest = idx.filter((i) => !wideSet.has(i))
+  if (rest.length < 24) return null
+  const gutter = bestGutter(rest, freeRuns(rest, x0, x1, c), c)
+  return gutter ? bands(rest, wide, gutter, c, depth) : null
+}
+
+/** X bands in the middle 70 % of [x0, x1], at least 0.4 line heights wide, that at most 3 % of the lines cross. */
+function freeRuns(rest: number[], x0: number, x1: number, c: Ctx): [number, number][] {
+  const lo = Math.trunc(x0 + 0.15 * (x1 - x0))
+  const n = Math.trunc(0.7 * (x1 - x0)) + 1
+  const cover = new Int32Array(n)
+  for (const i of rest) {
+    const a = Math.max(0, Math.trunc(ext0(c, i)[0]) - lo)
+    const b = Math.min(n, Math.ceil(ext0(c, i)[1]) - lo)
+    for (let x = a; x < b; x++) cover[x] = (cover[x] ?? 0) + 1
+  }
+  const limit = Math.max(1, Math.trunc(0.03 * rest.length))
+  const runs: [number, number][] = []
+  let start: number | null = null
+  for (let x = 0; x <= n; x++) {
+    const free = x < n && (cover[x] ?? 0) <= limit
+    if (free) start ??= x
+    else if (start !== null) {
+      if (x - start >= 0.4 * c.hmed) runs.push([lo + start, lo + x])
+      start = null
+    }
+  }
+  return runs
+}
+
+/** The widest run with a prose column on each side, or null. */
+function bestGutter(rest: number[], runs: [number, number][], c: Ctx): [number, number] | null {
+  let best: [number, number] | null = null
+  for (const [k, [g0, g1]] of runs.entries()) {
+    const prev = runs[k - 1]
+    const next = runs[k + 1]
+    // The column on each side ends at the neighbouring gutter (three columns: two gutters).
+    const lcol = rest.filter((i) => ext0(c, i)[1] <= g0 && (!prev || ext0(c, i)[0] >= prev[1]))
+    const rcol = rest.filter((i) => ext0(c, i)[0] >= g1 && (!next || ext0(c, i)[1] <= next[0]))
+    if (columnPair(lcol, rcol, c) && (!best || g1 - g0 > best[1] - best[0])) best = [g0, g1]
+  }
+  return best
+}
+
+/** The block cut into bands by the lines crossing the gutter; each band left, right, then its separator. */
+function bands(
+  rest: number[],
+  wide: number[],
+  [g0, g1]: [number, number],
+  c: Ctx,
+  depth: number,
+): number[][] {
+  const cy = (i: number) => (ext0(c, i)[2] + ext0(c, i)[3]) / 2
+  const cx = (i: number) => (ext0(c, i)[0] + ext0(c, i)[1]) / 2
+  // Narrower lines that still cross the whole gutter.
+  const mid = rest.filter((i) => ext0(c, i)[0] < g0 && ext0(c, i)[1] > g1)
+  const midSet = new Set(mid)
+  const seps = [...wide, ...mid].sort((p, q) => cy(p) - cy(q))
+  const out: number[][] = []
+  for (let b = 0; b <= seps.length; b++) {
+    const prev = seps[b - 1]
+    const sep = seps[b]
+    const top = prev === undefined ? -Infinity : cy(prev)
+    const bottom = sep === undefined ? Infinity : cy(sep)
+    const band = rest.filter((i) => !midSet.has(i) && top < cy(i) && cy(i) <= bottom)
+    // A line that only touches the gutter goes to the side of its centre.
+    const left = band.filter((i) => cx(i) < (g0 + g1) / 2)
+    const right = band.filter((i) => cx(i) >= (g0 + g1) / 2)
+    if (left.length > 0) out.push(...blocks(left, c, depth + 1))
+    if (right.length > 0) out.push(...blocks(right, c, depth + 1))
+    if (sep !== undefined) out.push([sep])
+  }
+  return out
 }
 
 type RowGeometry = {
@@ -181,6 +325,7 @@ export function readingOrder(
   boxes: readonly Quad[],
   angle: number,
   texts: readonly string[] | null = null,
+  rules: ListRules | null = LIST_RULES,
 ): number[][] {
   if (boxes.length === 0) return []
   const a = -angle / RAD
@@ -192,7 +337,7 @@ export function readingOrder(
     return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
   })
   const hmed = lineHeight(boxes)
-  const ctx: Ctx = { ext, hmed, texts }
+  const ctx: Ctx = { ext, hmed, texts, rules }
   const geo: RowGeometry = {
     cy: ext.map((e) => (e[2] + e[3]) / 2),
     rx: ext.map((e) => (e[0] + e[1]) / 2),
@@ -200,7 +345,20 @@ export function readingOrder(
     hmed,
   }
   const all = boxes.map((_, i) => i)
-  return blocks(all, ctx).flatMap((blk) => blockRows(blk, geo))
+  let blks = blocks(all, ctx)
+  if (a !== 0) {
+    // The skew can be 1-2 degrees off on a straight page; rotated by it, a gutter about one em
+    // wide is covered by the column's line ends. The unrotated frame is used for the blocks when
+    // it finds more of them; rows are still grouped in the rotated frame.
+    const flat: Extent[] = boxes.map((b) => {
+      const xs = b.map((p) => p[0])
+      const ys = b.map((p) => p[1])
+      return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+    })
+    const alt = blocks(all, { ...ctx, ext: flat })
+    if (alt.length > blks.length) blks = alt
+  }
+  return blks.flatMap((blk) => blockRows(blk, geo))
 }
 
 /**

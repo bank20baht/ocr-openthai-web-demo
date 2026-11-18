@@ -1,19 +1,23 @@
 /**
- * OpenThai2.0-OCR-Text in the browser: a port of the model's own runtime (runtime/line_engine.py)
- * onto two ONNX networks and OffscreenCanvas.
+ * OpenThai2.1-OCR-Text in the browser: a port of the model's own runtime (runtime/line_engine.py,
+ * v2.1.4) onto its ONNX networks and OffscreenCanvas.
  *
  *   page -> detector (probability map -> DB boxes, unclipped) -> [deskew, detect again]
  *        -> each line cut at height 48, background flattened -> recognizer (batched by width)
- *        -> greedy CTC decode -> Thai clean-up -> line filter -> reading order -> text
+ *        -> greedy CTC decode -> [rec2 re-read of Latin look-alikes inside Thai words]
+ *        -> reading order -> [floating marks put back, their line read again]
+ *        -> Thai clean-up, decimal points -> line filter -> text
  *
  * Not ported: quarter-turn orientation (sideways / upside-down pages), splitting a line at a wide
- * blank gap, and word boxes. EXIF rotation is applied by the browser when it decodes the photo.
+ * blank gap, word boxes, and the options 2.1.4 ships turned off (short_pad, rescan, paragraphs,
+ * 2.2's dewarp). EXIF rotation is applied by the browser when it decodes the photo.
  */
 import {
   applyAffine,
   invertAffine,
   mapQuad,
   minAreaRect,
+  quadHeight,
   quadMean,
   rectCorners,
   regionBorders,
@@ -21,10 +25,12 @@ import {
   type Affine,
   type Quad,
 } from './geometry'
-import { fragments, pageSkew, readingOrder } from './layout'
+import { fragments, lineHeight, pageSkew, readingOrder } from './layout'
 import { cutLine, flatten, quadSize, toGray, turnQuad, type Gray } from './pixels'
 import type { OcrLine, OcrResult, Stage } from './protocol'
-import { canonical, fixScripts, invalidShare } from './thai-text'
+import { clean, dropReason } from './filter'
+import { attachMarks } from './marks'
+import { decimalPoint, mixedLatin } from './thai-text'
 
 /** One ONNX network: a float32 tensor in, its first output back. */
 export type Net = (
@@ -41,11 +47,9 @@ const CONFIG = {
     height: 48,
     maxWidth: 3200,
     batch: 16,
-    dropBelow: 0.8,
-    minChars: 2,
-    junkBelow: 0.9,
-    junkInvalid: 0.05,
   },
+  /** A line with this many Latin letters inside Thai words is read again by rec2. */
+  rec2MinMixed: 1,
   deskewAbove: 2.5,
   /** Longest side a page is read at; phone photos are larger than the text needs. */
   maxSide: 4000,
@@ -181,6 +185,10 @@ export function dbBoxes(prob: Float32Array, pw: number, ph: number): Quad[] {
 }
 
 type Read = { text: string; confidence: number }
+/** turned: read from a tall box turned sideways (not a candidate for rec2). */
+export type BoxRead = Read & { turned: boolean }
+
+const noProgress: Progress = () => undefined
 
 export class LineOcr {
   constructor(
@@ -188,6 +196,8 @@ export class LineOcr {
     private readonly rec: Net,
     /** CTC classes: blank, the dictionary, then the space PaddleOCR appends. */
     private readonly chars: readonly string[],
+    /** The second recognizer, trained with loopless Thai fonts too; null = off. */
+    private readonly rec2: Net | null = null,
   ) {}
 
   static charset(dict: string): string[] {
@@ -227,7 +237,7 @@ export class LineOcr {
 
   // -- recognition -----------------------------------------------------------
   /** Read every crop, batched by width. */
-  async recognize(crops: Gray[], progress: Progress): Promise<Read[]> {
+  async recognize(crops: Gray[], progress: Progress, net: Net = this.rec): Promise<Read[]> {
     const c = CONFIG.rec
     const H = c.height
     const out: Read[] = crops.map(() => ({ text: '', confidence: 0 }))
@@ -251,7 +261,7 @@ export class LineOcr {
           }
         }
       })
-      const res = await this.rec(x, [idx.length, 3, H, W])
+      const res = await net(x, [idx.length, 3, H, W])
       const frames = res.dims[1] ?? 0
       const classes = res.dims[2] ?? 0
       idx.forEach((i, n) => {
@@ -264,9 +274,11 @@ export class LineOcr {
 
   /**
    * Recognise every box. A box taller than wide is either a vertical run of text or one tall
-   * character, so it is also read turned both ways and the most confident reading kept.
+   * character, so it is also read turned both ways and the most confident reading kept. A line
+   * with Latin letters inside Thai words (a loopless face: บ read as U, ร as S) is read again by
+   * rec2, whose reading is kept if it has fewer of them.
    */
-  async readBoxes(gray: Gray, boxes: readonly Quad[], progress: Progress): Promise<Read[]> {
+  async readBoxes(gray: Gray, boxes: readonly Quad[], progress: Progress): Promise<BoxRead[]> {
     const { height, maxWidth } = CONFIG.rec
     const cut = (q: Quad) => flatten(cutLine(gray, q, height, maxWidth))
     const tall = boxes.flatMap((b, i) => {
@@ -278,14 +290,34 @@ export class LineOcr {
       ...tall.map((t) => turnQuad(t.b, 1)),
       ...tall.map((t) => turnQuad(t.b, -1)),
     ]
-    const res = await this.recognize(quads.map(cut), progress)
-    const out = res.slice(0, boxes.length)
+    const crops = quads.map(cut)
+    const res = await this.recognize(crops, progress)
+    const out: BoxRead[] = res.slice(0, boxes.length).map((r) => ({ ...r, turned: false }))
     tall.forEach(({ i: n }, j) => {
       for (const alt of [res[boxes.length + j], res[boxes.length + tall.length + j]]) {
         const cur = out[n]
-        if (alt && cur && alt.confidence > cur.confidence) out[n] = alt
+        if (alt && cur && alt.confidence > cur.confidence) out[n] = { ...alt, turned: true }
       }
     })
+    if (this.rec2) {
+      const sus = out.flatMap((r, n) =>
+        !r.turned && mixedLatin(r.text) >= CONFIG.rec2MinMixed ? [n] : [],
+      )
+      const alts =
+        sus.length > 0
+          ? await this.recognize(
+              sus.flatMap((n) => crops.slice(n, n + 1)),
+              noProgress,
+              this.rec2,
+            )
+          : []
+      sus.forEach((n, k) => {
+        const alt = alts[k]
+        const cur = out[n]
+        if (alt && cur && mixedLatin(alt.text) < mixedLatin(cur.text))
+          out[n] = { ...alt, turned: false }
+      })
+    }
     return out
   }
 
@@ -329,18 +361,22 @@ export class LineOcr {
 
     const gray = toGray(pixelsOf(page), pw, ph)
     const reads = await this.readBoxes(gray, boxes, progress)
-    const t2 = performance.now()
 
     const raw = reads.map((r) => r.text)
     const rows = readingOrder(boxes, pageSkew(boxes), raw)
     const frag = fragments(boxes, raw)
+    const absorbed = await attachMarks(boxes, reads, frag, page, (grown) =>
+      this.readBoxes(gray, grown, noProgress),
+    )
+    for (const j of absorbed) frag.add(j)
+    const t2 = performance.now()
+    const hmed = boxes.length > 0 ? lineHeight(boxes) : 1
     const back = invertAffine(toPage)
     const toImage = (q: Quad) =>
       q.map((p) => {
         const [x, y] = applyAffine(back, p)
         return [Math.round((x / scale) * 10) / 10, Math.round((y / scale) * 10) / 10] as const
       })
-    const { dropBelow, minChars, junkBelow, junkInvalid } = CONFIG.rec
     const lines: OcrLine[] = []
     const rowTexts: string[] = []
     let dropped = 0
@@ -351,13 +387,8 @@ export class LineOcr {
         const r = reads[i]
         const box = boxes[i]
         if (!r || !box) continue
-        const text = fixScripts(canonical(r.text))
-        const keep =
-          text !== '' &&
-          r.confidence >= dropBelow &&
-          text.replaceAll(' ', '').length >= minChars &&
-          !(r.confidence < junkBelow && invalidShare(text) > junkInvalid)
-        if (!keep) {
+        const text = decimalPoint(clean(r.text))
+        if (dropReason(text, r.confidence, quadHeight(box) / hmed) !== null) {
           dropped++
           continue
         }

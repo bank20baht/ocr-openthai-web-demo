@@ -1,5 +1,5 @@
 /**
- * Downloads the OpenThai2.0-OCR-Text model files into public/models/, pinned to one Hugging Face
+ * Downloads the OpenThai2.1-OCR-Text model files into public/models/, pinned to one Hugging Face
  * revision and checked against the repo's own SHA256SUMS. They are served with the app as static
  * files, so the browser loads the model from the same origin and nothing else is contacted.
  * Runs before `dev` and `build`; files already present with the right hash are kept.
@@ -8,9 +8,10 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const REPO = 'iapp/OpenThai2.0-OCR-Text'
-const REVISION = '40e8e9ff752b65153b1a71d521ec9390882afd7e'
-const FILES = ['det.onnx', 'rec.onnx', 'rec_dict.txt', 'NOTICE'] as const
+const REPO = 'iapp/OpenThai2.1-OCR-Text-20261118'
+/** Tag v2.1.4. */
+const REVISION = 'fac2b5ceefc19d66e65de7d32d75ab99c7e927c8'
+const FILES = ['det.onnx', 'rec.onnx', 'rec2.onnx', 'rec_dict.txt', 'NOTICE'] as const
 const OUT = join(import.meta.dir, '..', 'public', 'models')
 
 const url = (file: string) => `https://huggingface.co/${REPO}/resolve/${REVISION}/${file}`

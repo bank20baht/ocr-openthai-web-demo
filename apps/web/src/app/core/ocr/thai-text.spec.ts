@@ -1,4 +1,14 @@
-import { canonical, enumNumber, fixScripts, invalidShare } from './thai-text'
+import {
+  baseOf,
+  canonical,
+  decimalPoint,
+  digitsOf,
+  enumNumber,
+  fixScripts,
+  invalidShare,
+  mixedLatin,
+  startRepeat,
+} from './thai-text'
 
 describe('canonical', () => {
   it('orders marks after a base: vowel, then tone', () => {
@@ -48,5 +58,42 @@ describe('enumNumber', () => {
     expect(enumNumber('12. ข้อความ')).toBe(12)
     expect(enumNumber('(๑๔๗) ข้อ')).toBe(147)
     expect(enumNumber('ข้อ 1')).toBeNull()
+  })
+})
+
+describe('mixedLatin', () => {
+  it('counts Latin letters inside Thai words only', () => {
+    expect(mixedLatin('lละพลNSะทU')).toBe(4)
+    expect(mixedLatin('ราคา Coffee 50 บาท')).toBe(0)
+  })
+})
+
+describe('decimalPoint', () => {
+  it('turns a two-digit last comma into a decimal point', () => {
+    expect(decimalPoint('รวม 280,00 บาท')).toBe('รวม 280.00 บาท')
+    expect(decimalPoint('88,226,21')).toBe('88,226.21')
+    expect(decimalPoint('๒๘๐,๐๐')).toBe('๒๘๐.๐๐')
+  })
+
+  it('leaves thousands and longer numbers alone', () => {
+    expect(decimalPoint('1,000')).toBe('1,000')
+    expect(decimalPoint('1,000.50')).toBe('1,000.50')
+    expect(decimalPoint('12,345,67,89')).toBe('12,345,67,89')
+  })
+})
+
+describe('digitsOf / baseOf', () => {
+  it('keeps the digits, and the letters without marks', () => {
+    expect(digitsOf('เลขที่ 0105๑')).toBe('0105๑')
+    expect(baseOf('น้ำ ใจ')).toBe(baseOf('นา ใจ'))
+    expect(baseOf('กัน')).toBe('กน')
+  })
+})
+
+describe('startRepeat', () => {
+  it('is the share of lines starting like the two most common starts', () => {
+    expect(startRepeat(['นายก', 'นายข', 'นางค', 'ข้อ'])).toBe(0.75)
+    expect(startRepeat(['1. ก', '22. ข', '๓. ค'])).toBe(1)
+    expect(startRepeat([])).toBe(0)
   })
 })

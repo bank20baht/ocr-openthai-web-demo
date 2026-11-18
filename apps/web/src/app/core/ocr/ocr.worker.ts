@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 /**
- * The OCR worker: loads the two ONNX networks once (ONNX Runtime Web, WebAssembly on the CPU)
+ * The OCR worker: loads the ONNX networks once (ONNX Runtime Web, WebAssembly on the CPU)
  * and reads pages off the main thread, so the page stays responsive while a scan is read.
  */
 import * as ort from 'onnxruntime-web/wasm'
@@ -27,6 +27,10 @@ async function network(url: string): Promise<Net> {
   const session = await ort.InferenceSession.create(await fetchBytes(url), {
     executionProviders: ['wasm'],
     graphOptimizationLevel: 'all',
+    // Every page size is a new input shape; cached memory patterns only grow (config.json's
+    // runtime.ort_low_memory). The output is identical.
+    enableCpuMemArena: false,
+    enableMemPattern: false,
   })
   const input = session.inputNames[0] ?? 'x'
   const output = session.outputNames[0] ?? ''
@@ -44,12 +48,13 @@ async function load(base: string, ortBase: string): Promise<LineOcr> {
   ort.env.wasm.numThreads = self.crossOriginIsolated
     ? Math.min(4, self.navigator.hardwareConcurrency || 1)
     : 1
-  const [det, rec, dict] = await Promise.all([
+  const [det, rec, rec2, dict] = await Promise.all([
     network(`${base}det.onnx`),
     network(`${base}rec.onnx`),
-    fetch(`${base}rec_dict.txt`).then((r) => r.text()),
+    network(`${base}rec2.onnx`),
+    fetchBytes(`${base}rec_dict.txt`).then((b) => new TextDecoder().decode(b)),
   ])
-  return new LineOcr(det, rec, LineOcr.charset(dict))
+  return new LineOcr(det, rec, LineOcr.charset(dict), rec2)
 }
 
 self.addEventListener('message', (event: MessageEvent<ToWorker>) => {

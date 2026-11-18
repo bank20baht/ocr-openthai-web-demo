@@ -130,3 +130,52 @@ export function enumNumber(text: string): number | null {
 }
 
 export const DIGITS = new Set('0123456789๐๑๒๓๔๕๖๗๘๙')
+
+export const LATIN = new Set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
+
+const isThaiLetter = (ch: string) => ch >= 'ก' && ch <= '๎'
+
+/**
+ * Latin letters inside words that also hold Thai letters ("lละพลNSะทU" -> 4): a loopless Thai
+ * face read as Latin look-alikes. A Thai word next to an English one does not count.
+ */
+export function mixedLatin(text: string): number {
+  let n = 0
+  for (const tok of text.split(/\s+/)) {
+    const chars = Array.from(tok)
+    if (chars.some(isThaiLetter)) n += chars.filter((ch) => LATIN.has(ch)).length
+  }
+  return n
+}
+
+/** The Arabic and Thai digits of a reading, in order. */
+export const digitsOf = (text: string): string =>
+  Array.from(text)
+    .filter((ch) => DIGITS.has(ch))
+    .join('')
+
+const MARK_OR_SPACE = /[ัิ-ฺ็-๎\s]/g
+
+/** A reading without its above/below marks (sara am as its aa) and spaces. */
+export const baseOf = (text: string): string => text.replaceAll('ำ', 'า').replace(MARK_OR_SPACE, '')
+
+// Python's \d matches Thai digits too.
+const DECIMAL_COMMA = /(?<![0-9๐-๙.,])([0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})*),([0-9๐-๙]{2})(?![0-9๐-๙.,])/g
+
+/** An amount whose last comma has exactly two digits after it gets a decimal point: "280,00" -> "280.00". */
+export const decimalPoint = (text: string): string => text.replace(DECIMAL_COMMA, '$1.$2')
+
+const DIGIT_RUN = /[0-9๐-๙]+/g
+
+/** Share of lines whose first 3 characters (a digit run counted as one) are one of the 2 most common starts. */
+export function startRepeat(lines: readonly string[]): number {
+  const starts = lines
+    .map((x) => x.trim())
+    .filter((x) => x !== '')
+    .map((x) => Array.from(x.replace(DIGIT_RUN, 'D')).slice(0, 3).join(''))
+  if (starts.length === 0) return 0
+  const counts = new Map<string, number>()
+  for (const s of starts) counts.set(s, (counts.get(s) ?? 0) + 1)
+  const top = [...counts.values()].sort((a, b) => b - a).slice(0, 2)
+  return top.reduce((a, b) => a + b, 0) / starts.length
+}

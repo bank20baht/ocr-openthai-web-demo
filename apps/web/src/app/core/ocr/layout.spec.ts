@@ -44,6 +44,29 @@ describe('readingOrder', () => {
     expect(rows.flat()).toEqual(Array.from({ length: 24 }, (_, i) => i))
   })
 
+  it('reads the two sides of a list row by row', () => {
+    const left = Array.from({ length: 12 }, (_, i) => box(0, i * 30, 400, 20))
+    const right = Array.from({ length: 12 }, (_, i) => box(500, i * 30, 400, 20))
+    const texts = [
+      ...left.map((_, i) => `นายสมชาย คนที่ ${String(i)}`),
+      ...right.map((_, i) => `กรรมการลำดับ ${String(i)}`),
+    ]
+    expect(readingOrder([...left, ...right], 0, texts)[0]).toEqual([0, 12])
+  })
+
+  it('reads columns under a title that crosses the gutter', () => {
+    const title = box(0, 0, 900, 20)
+    const left = Array.from({ length: 12 }, (_, i) => box(0, 40 + i * 30, 400, 20))
+    const right = Array.from({ length: 12 }, (_, i) => box(500, 40 + i * 30, 400, 20))
+    const texts = [
+      'หัวเรื่อง',
+      ...left.map((_, i) => `${['ก', 'ข', 'ค', 'ง'][i % 4] ?? ''}ซ้าย ${String(i)}`),
+      ...right.map((_, i) => `${['จ', 'ฉ', 'ช', 'ซ'][i % 4] ?? ''}ขวา ${String(i)}`),
+    ]
+    const rows = readingOrder([title, ...left, ...right], 0, texts)
+    expect(rows.flat()).toEqual(Array.from({ length: 25 }, (_, i) => i))
+  })
+
   it('keeps a table with short cells in row order', () => {
     const left = Array.from({ length: 12 }, (_, i) => box(0, i * 30, 80, 20))
     const right = Array.from({ length: 12 }, (_, i) => box(500, i * 30, 80, 20))

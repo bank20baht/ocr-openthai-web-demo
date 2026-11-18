@@ -1,7 +1,7 @@
 # ocr-service
 
 Thai + English document OCR that runs entirely in the browser:
-[OpenThai2.0-OCR-Text](https://huggingface.co/iapp/OpenThai2.0-OCR-Text) on ONNX Runtime Web, no
+[OpenThai2.1-OCR-Text](https://huggingface.co/iapp/OpenThai2.1-OCR-Text-20261118) on ONNX Runtime Web, no
 server, files never leave the machine. Accepts `.jpg` and `.HEIC`.
 
 **Live demo: <https://openthai-ocr-text-demo.pages.dev>**
